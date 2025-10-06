@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.9.0/axios.min.js" integrity="sha512-FPlUpimug7gt7Hn7swE8N2pHw/+oQMq/+R/hH/2hZ43VOQ+Kjh25rQzuLyPz7aUWKlRpI7wXbY6+U3oFPGjPOA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 class="row">Login</h1>
+
+        <main>
+            <div class="row">
+                <div class="col-4">
+                    <form id="login-form">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email address</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <button type="button" onclick="login()" class="btn btn-primary">Submit</button>
+                        <button type="button" onclick="goTo('/dashboard')" class="btn btn-secondary">Dashboard</button>
+                        <button type="button" onclick="goTo('/settings')" class="btn btn-outline-secondary">Settings</button>
+                    </form>
+                </div>
+        </main>
+    </div>
+<script>
+    function goTo(path) {
+        history.pushState({ path }, '', path);
+        renderRoute(path);
+    }
+
+    window.addEventListener('popstate', (ev) => {
+        const path = (ev.state && ev.state.path) || location.pathname;
+        renderRoute(path);
+    });
+
+    function handleAuthError(err) {
+        if (err && err.response && err.response.status === 401) {
+            localStorage.removeItem('jwt');
+            location.href = '/';
+            return true;
+        }
+        return false;
+    }
+    function login() {
+        const data = {
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        }
+
+        axios.post("/api/login", data)
+            .then(response => {
+                document.getElementById('email').value = '';
+                document.getElementById('password').value = '';
+                if( response && response.data && response.data.success ) {
+                    const token = response.data.token;
+                    localStorage.setItem('jwt', token);
+                    goTo('/dashboard');
+                } 
+            })
+            .catch(error => {
+                console.error("There was an error!", error);
+                alert("Login failed!");
+            });
+    }
+
+    function renderRoute(path) {
+        const token = localStorage.getItem('jwt');
+
+        if (path === '/settings') {
+            axios.get('/api/settings', { headers: { 'Authorization': `Bearer ${token}` } })
+                .then(response => {
+                    document.querySelector('h1.row').innerText = 'Settings';
+                    document.querySelector('main').innerHTML = '<pre>' + JSON.stringify(response.data.settings, null, 2) + '</pre>';
+                })
+                .catch(err => {
+                    if (!handleAuthError(err)) console.error(err);
+                });
+            return;
+        }
+
+        axios.get('/api/dashboard', { headers: { 'Authorization': `Bearer ${token}` } })
+            .then(response => {
+                if (response && response.data) {
+                    console.log(response.data);
+                    document.querySelector('h1.row').innerText = 'Dashboard';
+                    document.querySelector('main').innerHTML = response.data.message;
+                }
+            })
+            .catch(err => {
+                if (!handleAuthError(err)) console.error(err);
+            });
+    }
+
+    function onLoad() {
+        const path = location.pathname;
+        const token = localStorage.getItem('jwt');
+
+        //Removing this redirection as settings is not accessible. 
+        // if (path === '/' && token) {
+        //     history.replaceState({ path: '/dashboard' }, '', '/dashboard');
+        //     renderRoute('/dashboard');
+        //     return;
+        // }
+
+        if (path === '/' ) return;
+        history.replaceState({ path }, '', path);
+        renderRoute(path);
+    }
+
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+    });
+
+    onLoad();
+
+</script>
+
+</body>
+
+</html>
